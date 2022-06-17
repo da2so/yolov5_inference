@@ -14,10 +14,10 @@ This provides:
 ```bash
 git clone https://github.com/da2so/yolov5_inference.git  # clone
 cd yolov5_inference
-pip install -r requirements.txt  # install```
+pip install -r requirements.txt 
 ```
 
-## Convert with Inferencing
+## Converting with inferencing
 
 Converting yolov5s torch model into ONNX:
 
@@ -30,4 +30,4 @@ Converting yolov5s torch model into ONNX and OpenVINO:
 python3 yolov5_convert.py --include onnx openvino  --imgsz 640 --save_dir test --model_name yolov5s
 ```
 
-The converted models are saved in 'save_dir' directory. Inferencing is automatically executed and results are saved in sub directory of 'save_dir'.
+The converted models are saved in 'save_dir' directory. Inferencing is automatically executed and results are saved in sub directory(e.g. save_dir/onnx_result) of 'save_dir'.

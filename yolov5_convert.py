@@ -73,15 +73,18 @@ def main(opt: argparse.ArgumentParser) -> None:
             inference_func = torch_inference
             model_path = save_path
             save_inf_dir = save_dir / 'torch_result' 
-        if fi == 'onnx':
+        if fi in ['onnx', 'openvino']:
             model_path = Path(save_path).with_suffix('.onnx')
             torch2onnx(model=model, im=im, save_path=model_path, train=train, dynamic=dynamic)
             inference_func = onnx_inference
             save_inf_dir = save_dir / 'onnx_result' 
+        if fi == 'openvino':
+            onnx_path = Path(save_path).with_suffix('.onnx')
+            model_path = onnx2openvino(model=model, onnx_path=onnx_path, save_path=save_path, data_type=data_type)
+            inference_func = openvino_inference
+            save_inf_dir = save_dir / 'openvino_result' 
 
-
-
-        if fi in ['pytorch', 'onnx']:
+        if fi in ['pytorch', 'onnx', 'openvino']:
             save_inf_dir.mkdir(parents=True, exist_ok=True) 
             logger.info(f'Loading {model_path} for {fi} Runtime inference...')
             inference(dataset=dataset, 
