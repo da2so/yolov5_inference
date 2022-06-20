@@ -12,10 +12,11 @@ loguru
 
 onnx>=1.9.0  # ONNX export
 onnx-simplifier>=0.3.6  # ONNX simplifier
-tensorflow>=2.4.1  # TFLite export
+tensorflow==2.4.1  # TFLite export
+tensorflow_datasets
 tensorflowjs>=3.9.0  # TF.js export
 openvino-dev  # OpenVINO export
-
+openvino2tensorflow==1.31.3
 
 onnxruntime-gpu
 onnxruntime

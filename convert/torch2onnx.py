@@ -40,28 +40,33 @@ def torch2onnx(model, im, save_path, train, dynamic):
         logger.info(f'ONNX: export failure: {e}')
 
 
-def onnx_inference(model_path, im, device, **kwargs):
+def onnx_load(model_path, device, **kwargs):
     cuda = torch.cuda.is_available()
+    if device == 'cpu':
+        cuda = False
     providers = ['CUDAExecutionProvider', 'CPUExecutionProvider'] if cuda else ['CPUExecutionProvider']
     session = onnxruntime.InferenceSession(str(model_path), providers=providers)
     meta = session.get_modelmeta().custom_metadata_map  # metadata
     if 'stride' in meta:
         stride, names = int(meta['stride']), eval(meta['names'])
+    return session
 
+def onnx_inference(model, im, device, **kwargs):
+    session = model
     im = im.cpu().numpy()  # torch to numpy
     y = session.run([session.get_outputs()[0].name], {session.get_inputs()[0].name: im})[0]
 
     if isinstance(y, np.ndarray):
         y = torch.tensor(y, device=device)
-
     return y
 
-
-def torch_inference(model_path, im, device, **kwargs):
+def torch_load(model_path, device, **kwargs):
     model = attempt_load(model_path if isinstance(model_path, list) else model_path, device=device)
+    return model
+
+def torch_inference(model, im, device, **kwargs):
     stride = max(int(model.stride.max()), 32)  # model stride
     names = model.module.names if hasattr(model, 'module') else model.names  # get class names
     model.half() if kwargs['data_type'] == 'fp16' else model.float()
-
     y = model(im)[0]
     return y 

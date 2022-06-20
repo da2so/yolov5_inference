@@ -31,14 +31,17 @@ def onnx2openvino(model, onnx_path, save_path, data_type):
         logger.info(f'\nOpenVINO: export failure: {e}')
 
 
-def openvino_inference(model_path, im, device, **kwargs):
+def openvino_load(model_path, **kwargs):
     ie = Core()
     if not Path(model_path).is_file():  # if not *.xml
         w = next(Path(model_path).glob('*.xml'))  # get *.xml file from *_openvino_model dir
     network = ie.read_model(model=w, weights=Path(w).with_suffix('.bin'))
     executable_network = ie.compile_model(model=network, device_name="CPU")
+    return executable_network
+
+def openvino_inference(model, im, device, **kwargs):
+    executable_network = model
     output_layer = next(iter(executable_network.outputs))
-    meta = Path(model_path).with_suffix('.yaml')
 
     im = im.cpu().numpy()  # FP32
     y = executable_network([im])[output_layer]

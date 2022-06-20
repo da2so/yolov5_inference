@@ -16,6 +16,7 @@ from yolov5.plots import Annotator, colors
 from convert import *
 
 
+
 def main(opt: argparse.ArgumentParser) -> None:
     model_name, imgsz, bs, save_dir, include, device, half, inplace, train, dynamic, int8, img_dir= \
         opt.model_name, opt.imgsz, opt.batch_size, opt.save_dir, opt.include, \
@@ -28,7 +29,23 @@ def main(opt: argparse.ArgumentParser) -> None:
     download_model(model_name=model_name, save_path=save_path)
 
     include = [x.lower() for x in include]  # to lowercase
-    include.append('pytorch') # add pytorch for default
+    new_include = ['pytorch']
+    if 'tensorflow' in include:
+        new_include.append('onnx')
+        new_include.append('openvino')
+        new_include.append('tensorflow')
+    elif 'tflite' in include:
+        if not 'onnx' in new_include:
+            new_include.append('onnx')
+            new_include.append('openvino')
+        new_include.append('tflite')
+    elif 'openvino' in include:
+        new_include.append('onnx')   
+        new_include.append('openvino')
+    elif 'onnx' in include:
+        new_include.append('onnx')
+    
+    include = new_include
 
     # Load PyTorch model
     device = select_device(device)
@@ -67,49 +84,80 @@ def main(opt: argparse.ArgumentParser) -> None:
 
     dataset = LoadImages(img_dir, img_size=imgsz, stride=32, auto=False)
     bs = 1  # batch_size
-
+    
     for fi in include:
         if fi == 'pytorch':
             inference_func = torch_inference
+            model_load_func = torch_load
             model_path = save_path
             save_inf_dir = save_dir / 'torch_result' 
-        if fi in ['onnx', 'openvino']:
+            i_device = device
+            prefix = 'PyTorch'
+        if fi == 'onnx':
             model_path = Path(save_path).with_suffix('.onnx')
             torch2onnx(model=model, im=im, save_path=model_path, train=train, dynamic=dynamic)
+            model_load_func = onnx_load
             inference_func = onnx_inference
             save_inf_dir = save_dir / 'onnx_result' 
+            i_device = device
+            prefix = 'ONNX'
         if fi == 'openvino':
             onnx_path = Path(save_path).with_suffix('.onnx')
             model_path = onnx2openvino(model=model, onnx_path=onnx_path, save_path=save_path, data_type=data_type)
+            model_load_func = openvino_load
             inference_func = openvino_inference
             save_inf_dir = save_dir / 'openvino_result' 
+            i_device = 'cpu'
+            prefix = 'OpenVINO'
+        if fi == 'tensorflow':
+            openvino_path = model_path
+            model_path = openvino2tensorflow(model_name=model_name, openvino_path=openvino_path, save_dir=save_dir)
+            model_load_func = tensorflow_load
+            inference_func = tensorflow_inference
+            save_inf_dir = save_dir / 'tensorflow_result'
+            i_device = 'cpu'
+            prefix = 'TF'
+        if fi == 'tflite':
+            openvino_path = model_path
+            model_path = openvino2tflite(model_name=model_name, openvino_path=openvino_path, save_dir=save_dir)
+            model_load_func = tflite_load
+            inference_func = tflite_inference
+            save_inf_dir = save_dir / 'tflite_result'
+            i_device = 'cpu'
+            prefix = 'TFLite'
 
-        if fi in ['pytorch', 'onnx', 'openvino']:
-            save_inf_dir.mkdir(parents=True, exist_ok=True) 
-            logger.info(f'Loading {model_path} for {fi} Runtime inference...')
-            inference(dataset=dataset, 
-                        inference_func=inference_func, 
-                        model_path=model_path, 
-                        device=device, 
-                        data_type=data_type, 
-                        names=names,
-                        save_dir=save_inf_dir)
+        save_inf_dir.mkdir(parents=True, exist_ok=True) 
+        logger.info(f'{prefix}: Loading {model_path} for {fi} ({i_device}) Runtime inference...')
+        if fi == 'tensorflow':
+            model_path = str(Path(model_path).parent) 
+        inference(dataset=dataset, 
+                    model_load_func=model_load_func,
+                    inference_func=inference_func, 
+                    model_path=model_path, 
+                    device=device, 
+                    data_type=data_type, 
+                    names=names,
+                    save_dir=save_inf_dir,
+                    prefix=prefix)
 
 
 def inference(dataset, 
+            model_load_func,
             inference_func, 
             model_path, 
             device, 
             data_type,
             names,
             save_dir, 
+            prefix,
             conf_thres: float = 0.25,
             iou_thres: float = 0.45,
             agnostic_nms: bool = False,
             max_det: int = 1000,
             classes: Any = None,
             **kwargs):
-
+    
+    model = model_load_func(model_path=model_path, device=device)
     dt, seen = [0.0, 0.0, 0.0], 0
     for path, im, im0s, vid_cap, s in dataset:
         t1 = time_sync()
@@ -121,7 +169,7 @@ def inference(dataset,
         t2 = time_sync()
         dt[0] += t2 - t1
         # Inference
-        pred = inference_func(model_path=model_path, im=im, device=device, data_type=data_type)
+        pred = inference_func(model=model, im=im, device=device, data_type=data_type)
         t3 = time_sync()
         dt[1] += t3 - t2
 
@@ -162,14 +210,17 @@ def inference(dataset,
             cv2.imwrite(save_path, im0)
           
         # Print time (inference-only)
-        logger.info(f'{s}Done. ({t3 - t2:.3f}s)')
-    
+        logger.info(f'{prefix}: {s}Done. ({t3 - t2:.3f}s)')
+        # Print results
+    t = tuple(x / seen * 1E3 for x in dt)  # speeds per image
+    logger.info(f'{prefix}: Speed: %.1fms pre-process, %.1fms inference, %.1fms NMS per image\n\n' % t)
+
 def parse_opt() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_name', type=str, default='yolov5s', help='yolov5s, yolov5n, yolov5m, yolov5l')
     parser.add_argument('--imgsz', '--img', '--img-size', nargs='+', type=int, default=[640, 640], help='image (h, w)')
     parser.add_argument('--batch-size', type=int, default=1, help='batch size')
-    parser.add_argument('--img_dir', type=str, default='./data', help='test image directory')
+    parser.add_argument('--img_dir', type=str, default='./data/test', help='test image directory')
     parser.add_argument('--save_dir', type=str, default='./test', help='save directory')
     parser.add_argument('--device', default='cpu', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     parser.add_argument('--half', action='store_true', help='FP16 half-precision export')
@@ -179,7 +230,7 @@ def parse_opt() -> argparse.ArgumentParser:
     parser.add_argument('--int8', action='store_true', help='CoreML/TF INT8 quantization')
     parser.add_argument('--include',
                     nargs='+',
-                    default=['openvino','onnx'],
+                    default=['tensorflow'],
                     help='onnx, openvino, saved_model, pb, tflite')
 
     opt = parser.parse_args()
