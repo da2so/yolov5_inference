@@ -14,24 +14,6 @@
             ]
         },
         {
-            "layer_id": "266",
-            "type": "Const",
-            "replace_mode": "direct",
-            "values": [
-                4
-            ]
-        },
-        {
-            "layer_id": "267",
-            "type": "Const",
-            "replace_mode": "direct",
-            "values": [
-                2,
-                2,
-                81
-            ]
-        },
-        {
             "layer_id": "320",
             "type": "Const",
             "replace_mode": "direct",
@@ -44,24 +26,6 @@
             ]
         },
         {
-            "layer_id": "323",
-            "type": "Const",
-            "replace_mode": "direct",
-            "values": [
-                4
-            ]
-        },
-        {
-            "layer_id": "324",
-            "type": "Const",
-            "replace_mode": "direct",
-            "values": [
-                2,
-                2,
-                81
-            ]
-        },
-        {
             "layer_id": "377",
             "type": "Const",
             "replace_mode": "direct",
@@ -71,24 +35,6 @@
                 1,
                 2,
                 4
-            ]
-        },
-        {
-            "layer_id": "380",
-            "type": "Const",
-            "replace_mode": "direct",
-            "values": [
-                4
-            ]
-        },
-        {
-            "layer_id": "381",
-            "type": "Const",
-            "replace_mode": "direct",
-            "values": [
-                2,
-                2,
-                81
             ]
         }
     ]
